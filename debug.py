@@ -13,7 +13,8 @@ players_list = [player1, player2, player3, player4]
 random.shuffle(players_list)
 dealer=Dealer(players_list)
 
-for k in range(10000):
+score_list=[0]*9
+for k in range(100000):
     print("")
     print("game=",k)
     cards=[0]*7
@@ -26,6 +27,10 @@ for k in range(10000):
         cards[i]=card
 
     (sc,rtcards)=dealer.calc_hand_score(cards)
+    score_list[sc]+=1
     print("score--",sc)
     print("best--",rtcards)
 
+print("#####################################")
+print("SCORE:",score_list)
+print("#####################################")
