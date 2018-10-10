@@ -205,10 +205,10 @@ class Dealer(object):
                     if card_list[6-i][0]==SUIT:
                         flash_list.append(card_list[6-i])
         
-        (straight,straight_list)=self.stlist(card_list)
+        (straight,straight_list)=self.judge_straight(card_list)
         
         if straight==1 and flash==1:
-            (st,st_list)=self.stlist(flash_list)
+            (st,st_list)=self.judge_straight(flash_list)
             if st==1:
                 score=8
                 straight_flash=1
@@ -350,7 +350,7 @@ class Dealer(object):
         return (num,suit,card)
 
     #for straight:make straight_list
-    def stlist(self,card_list):
+    def judge_straight(self,card_list):
         card_list=sorted(card_list, key=lambda x: x[1])
         num=[0]*len(card_list)
         for i in range(len(card_list)):
