@@ -179,12 +179,9 @@ class Dealer(object):
         rtCrads=[]
         
         (num,suit,card_list)=self.choice(cards)#クラスからnum,suit,cardを抜き出す
-        card_list=sorted(card_list, key=lambda x: x[1])###<<DEBUG MODE>>###
-        print("card:",card_list)
         pp=self.checkpair(cards)#Kawadaさんの4cardsとか抜き出してリストにするやつ
         ##REPLACE 1-->14
         num=self.rpc1(num)
-        num.sort()
         nc=[]
         for i in range(len(card_list)):
             ss=card_list[i][0]
@@ -192,6 +189,7 @@ class Dealer(object):
             nc.append((ss,nn))
         card_list=nc
         card_list=sorted(card_list, key=lambda x: x[1])#2ndでsort
+        print(card_list)
         
         flash=0
         straight=0
@@ -205,10 +203,10 @@ class Dealer(object):
                     if card_list[6-i][0]==SUIT:
                         flash_list.append(card_list[6-i])
         
-        (straight,straight_list)=self.stlist(card_list)
+        (straight,straight_list)=self.judge_straight(card_list)
         
         if straight==1 and flash==1:
-            (st,st_list)=self.stlist(flash_list)
+            (st,st_list)=self.judge_straight(flash_list)
             if st==1:
                 score=8
                 straight_flash=1
@@ -227,9 +225,8 @@ class Dealer(object):
             for i in range(13):
                 if num.count(14-i)==4:
                     for n in range(len(card_list)):
-                        if card_list[6-n][1]==14-i:
-                            rtCards.append(card_list[6-n])
-                            card_list.remove(card_list[6-n])
+                        if card_list[n][1]==14-i:
+                            rtCards.append(card_list[n])
             rtCards.append(card_list[2])
         ##Fullhouse##
         elif pp[1]==2:#3c *2
@@ -336,6 +333,7 @@ class Dealer(object):
             nn=(rtCards[i][1]-1)%13+1
             nc.append((ss,nn))
         rtCards=nc
+        print(rtCards)
         return (score,rtCards)
 
     def choice(self,card_list):#suit,num,cardのみを取り出してリスト化
@@ -350,7 +348,7 @@ class Dealer(object):
         return (num,suit,card)
 
     #for straight:make straight_list
-    def stlist(self,card_list):
+    def judge_straight(self,card_list):
         card_list=sorted(card_list, key=lambda x: x[1])
         num=[0]*len(card_list)
         for i in range(len(card_list)):
@@ -401,39 +399,6 @@ class Dealer(object):
             card=(card-1)%13+1
             rp.append(card)
         return rp
-
-    def judge_flash(self,cl1,cl2):###FLASH判定###
-        num1=[]
-        num2=[]
-        for k in range(5):
-            num1.append(cl1[k][1])
-            num2.append(cl2[k][1])
-        for i in range(5):
-            if max(num1)>max(num2):
-                sc=0
-                break
-            elif max(num1)<max(num2):
-                sc=1
-                break
-            elif max(num1)==max(num2):
-                sc=2
-                num1.remove(max(num1))
-                num2.remove(max(num2))
-        return sc
-
-    def judge_straight(self,cl1,cl2):###STRAIGHT判定###
-        num1=[]
-        num2=[]
-        for i in range(5):
-            num1.append(cl1[i][1])
-            num2.append(cl2[i][1])
-        if max(cl1)>max(cl2):
-            sc=0
-        elif max(cl1)<max(cl2):
-            sc=1
-        elif max(cl1)==max(cl2):
-            sc=2
-        return sc
 
     @property
     def field(self):

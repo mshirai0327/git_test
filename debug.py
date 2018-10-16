@@ -13,15 +13,7 @@ players_list = [player1, player2, player3, player4]
 random.shuffle(players_list)
 dealer=Dealer(players_list)
 
-'''
-cl1=[('H', 12), ('H', 11), ('H', 10), ('H', 9), ('H', 8)]
-cl2=[('H', 12), ('H', 11), ('H', 10), ('H', 9), ('H', 8)]
-sc=dealer.judge_straight(cl1,cl2)
-print(sc)
-
-'''
-score_list=[0]*9
-for k in range(1000):
+for k in range(10000):
     print("")
     print("game=",k)
     cards=[0]*7
@@ -34,14 +26,6 @@ for k in range(1000):
         cards[i]=card
 
     (sc,rtcards)=dealer.calc_hand_score(cards)
-    score_list[sc]+=1
     print("score--",sc)
     print("best--",rtcards)
-
-print("\n#####################################")
-print("SCORE:",score_list)
-print("#####################################")
-
-
-
 
