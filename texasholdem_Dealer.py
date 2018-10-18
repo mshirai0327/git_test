@@ -29,14 +29,31 @@ class Card(object):
     def number(self):
         return self.__number
 
+class Status(object):
+    def __init__(self, money):
+        self.__money = money
+        self.__bet_money = 0
+        if self.__money > 0:
+            self.in_game = True
+            self.alive = True
+        else:
+            self.in_game = False
+            self.alive = False
+
+    def bet(self, money):
+        self.__money -= money
+        self.__bet_money += money
+        return money
 
 class Dealer(object):
     def __init__(self, game_inst, players_input):
+        # FIXED PARAMETERS
         self.__MIN_NUMBER_CARDS = 1  # smallest number of playing cards
         self.__MAX_NUMBER_CARDS = 13  # largest number of playing cards
         self.__SUITE = ['S', 'C', 'H', 'D']  # suit of playing cards
         self.__NUM_HAND = 2  # number of hands
         self.__NUM_MAX_FIELD = 5  # maximum number of field
+
         self.__game_inst = game_inst
         self.__players = deepcopy(players_input)  # instance of players
         self.__num_players = len(self.__players)  # number of players
@@ -44,43 +61,50 @@ class Dealer(object):
             = self.__NUM_HAND * self.__num_players + self.__NUM_MAX_FIELD
         # player's hand money list
         self.__money_each_player = self.__game_inst.accounts
-        for _i in range(len(self.__players)):  # OBJECTIVE!!!
-            setattr(self.__players[_i], 'money', self.__game_inst.accounts[_i])
+        # create list of players' status
+        self.__list_status = [Status(_money) for _money in self.__game_inst.accounts]
         print(self.__money_each_player)
-        self.__field = []  # cards list on the field
+        # cards list on the field
+        self.__field = []
+        # get players know dealer's instance
         for player in self.__players:
             player.get_know_dealer(self)
+        # DB, SB, BB positioning
         self.__DB = self.__game_inst.DB
-        self.SB = (self.__DB + 1) % self.__num_players
-        # if player have no money samll-blined position change
-        while self.__money_each_player[self.SB] == 0:
-            self.SB = (self.SB+1) % self.__num_players
-        self.BB = (self.SB+1) % self.__num_players  # decide big-blined
-        # if player have no money big-blined position change
-        while self.__money_each_player[self.BB] == 0:
-            self.BB = (self.BB+1) % self.__num_players
-        self.money = 2  # betting money at first
-        # player can raise betting money the multiple of 2$ at first
-        self.minimum_bet = 2
-        self.playercheck = [True]*self.__num_players  # 返答を毎度更新し、降りた時に０にする
+        self.__SB = self.__next_alive_player(self.__DB)
+        self.__BB = self.__next_alive_player(self.__SB)
+        self.__betting_cost = game_inst.minimum_bet  # betting money at first
+        # player can raise betting money the multiple of game_inst.minimum_bet
+        self.minimum_bet = game_inst.minimum_bet
+        self.playercheck = [True]*self.__num_players  # 返答を毎度更新し、降りた時にFalseにする
         self.active_players_list = self.__players  # the list of actionable players
         self.bettingrate = [0]*self.__num_players  # 各々が賭けたお金を記録するリスト
-        self.bettingrate[self.SB] = 1  # small-blined bet 1$ at first
-        self.bettingrate[self.BB] = 2  # big-blined bet 2$ at first
+        self.bettingrate[self.__SB] = 1  # small-blined bet 1$ at first
+        self.bettingrate[self.__BB] = 2  # big-blined bet 2$ at first
+        self.__pot = self.__list_status[self.__SB].bet(self.minimum_bet/2)
+        self.__pot = self.__list_status[self.__BB].bet(self.minimum_bet)
         # this flag is used to compair to big-blined position
         self.flag_atfirst = 0
         # this flag is used to check the count of "call" and "fold"
         self.flag = 1
         # list of players respond("call"/"fold"/number of raise)
         self.resplist = []
-        for i in range(0, self.__num_players):
+        for i in range(self.__num_players):
             if self.__money_each_player[i] <= 0:
                 self.playercheck[i] = False
+                self.__list_status[i].in_game = False
                 # player who have no money can't play new game
         # print the player of small-blined position
-        print("small-blined  Player", self.SB+1)
+        print("SB Player", self.__SB)
         # print the player of big-blined position
-        print(" big -blined  Player", self.BB+1)
+        print("BB Player", self.__BB)
+
+    # give ith as int, return next player's index who is in the game
+    def __next_alive_player(self, ith):
+        _i = (ith + 1) % self.__num_players
+        while self.__list_status[_i].alive is False:
+            _i = (_i + 1) % self.__num_players
+        return _i
 
     # create a deck
     def __create_all_cards_stack(self):  # create list of [S1, S2, ..., D13]
@@ -111,74 +135,79 @@ class Dealer(object):
     # //////////////////////////////////////////////////////////////////////////
     # ask players what they want to do "fold, call, raise"
 
-    def sanka_kano_ninzu(self):  # number of players who play new game
-        ninzu_at_first = 0
-        for i in range(self.__num_players):
-            if self.__money_each_player[i] != 0:
-                ninzu_at_first = ninzu_at_first+1
-        return ninzu_at_first
+    # number of players who play new game
+    def __num_possible_players(self):
+        return len([i for i in self.__list_status if i.alive])
 
 #    def SB_kosin(self):  # number of small-blined(0~3)
     def DB_update(self):  # number of small-blined(0~3)
-        _DB = self.SB - 1
-        if _DB < 0:
-            _DB = self.__num_players - 1
-        return _DB
+        return self.__next_alive_player(self.__DB)
 
+    # ＜出てくるリストや変数＞
+    # self.resplistはplayerの返答をリストにしたもの
+    # "call"/"fold"/int() 参加資格が無いあるいは訊き始める条件にはない場合はskipし"----"を格納する
+    # self.player_numberはリストの何番目のplayerなのかを表したもの　追加した返答をルールに従うように補正する際関数に渡す
+    # self.flag self.flag_atfirstはそれぞれcallかfoldが続いたカウント、1ターン目のBB2ターン目以降のSBまでskipするためのカウンター
+    #
+    # <関数の構成>
+    # playerの番号を得る
+    # 必要があればskip("----"格納)してそれ以外はplayerに返答を訊きリストに格納
+    # 格納した返答がルールに従ったものになるように修正する
+    # 最後にフラグと生きているplayerのリストを更新する
     def get_response_from_one_person(self, player):
-        self.player_number = len(self.resplist)
+        self.player_number = len(self.resplist)  # know the number of player 0~4
         if self.flag >= self.__num_players or len(self.active_players_list) == 1:
-            self.resplist.append("----")  # レイズから1巡以降無視
-        elif self.flag_atfirst <= self.BB and self.BB != self.player_number - 1:
-            self.resplist.append("----")  # BBや前ターン最終レイズ者までの無視
+            self.resplist.append("----")  # skip players after fill the conditions to move nexat turn
+        elif self.flag_atfirst <= self.__BB and self.__BB != self.player_number - 1:
+            self.resplist.append("----")  # skip untill BB at first turn
         elif self.playercheck[self.player_number] is False:
-            self.resplist.append("----")  # 降りた人の無視
+            self.resplist.append("----")  # skip the player
         else:
-            self.resplist.append(player.respond())
-        self.hentounohosei(self.player_number)  # 返答をルールに従うように補正して解釈する
-        # 各フラグを1足して条件を満たせば次のターンの目印を更新
-        self.flagnokosin(self.player_number)
-        self.active_players()  # active_plyers_listを作成する
+            self.resplist.append(player.respond())  # get response from player
+        self.hentounohosei(self.player_number)  # correct response to follow the game rules
+        self.flagnokosin(self.player_number)  # move flags
+        self.active_players()  # renew active_plyers_list
 
     def hentounohosei(self, i):
         # while文でflagがプレイヤー数になるという次の工程に移行する条件を定義
         # flagでレイズから次にレイズがあるまでカウントししている
-        if self.flag_atfirst <= self.BB and self.BB != self.player_number - 1:
+        if self.flag_atfirst <= self.__BB and self.__BB != self.player_number - 1:
             self.flag = self.flag-1
         elif self.resplist[i] == "----":
             pass
         elif self.resplist[i] == "fold":
             self.playercheck[i] = False  # 降りる
-        elif self.__money_each_player[i] <= self.money:
+            self.__list_status[i].in_game = False
+        elif self.__money_each_player[i] <= self.__betting_cost:
             self.resplist[i] = "call"  # 掛け金に満たない場合で降りてないなら必然的にcall
             self.bettingrate[i] = self.__money_each_player[i]
         elif self.resplist[i] == "call" or 0:  # お金あるときのcall
-            self.bettingrate[i] = self.money
+            self.bettingrate[i] = self.__betting_cost
         elif type(self.resplist[i]) is str:
             self.resplist[i] = "call"
-            self.bettingrate[i] = self.money
-        elif self.money+self.minimum_bet >= self.__money_each_player[i]:
+            self.bettingrate[i] = self.__betting_cost
+        elif self.__betting_cost+self.minimum_bet >= self.__money_each_player[i]:
             self.bettingrate[i] = self.__money_each_player[i]
             self.flag = 0
-            self.money = self.money+self.minimum_bet
+            self.__betting_cost = self.__betting_cost+self.minimum_bet
         else:
             if self.minimum_bet > self.resplist[i]:
                 # minimum_betより小さい金額ならminimum_betに修正
                 self.resplist[i] = self.minimum_bet
-                self.money = self.money+self.resplist[i]
+                self.__betting_cost = self.__betting_cost+self.resplist[i]
                 # call金額の更新
-                self.bettingrate[i] = self.money
+                self.bettingrate[i] = self.__betting_cost
             else:
                 # minimum_betの整数倍をレイズするように返値を修正
                 j = int(self.resplist[i]/self.minimum_bet)
-                if self.__money_each_player[i] <= self.money+self.minimum_bet*j:
-                    j = int((self.__money_each_player[i]-self.money)/self.minimum_bet)+1
+                if self.__money_each_player[i] <= self.__betting_cost+self.minimum_bet*j:
+                    j = int((self.__money_each_player[i]-self.__betting_cost)/self.minimum_bet)+1
                 self.minimum_bet = self.minimum_bet*j
                 self.resplist[i] = self.minimum_bet
                 # minimum_betの更新
-                self.money = self.money+self.resplist[i]
+                self.__betting_cost = self.__betting_cost+self.resplist[i]
                 # call金額の更新
-                self.bettingrate[i] = self.money
+                self.bettingrate[i] = self.__betting_cost
             self.flag = 0
 
     def kakekinhosei(self):
@@ -199,7 +228,7 @@ class Dealer(object):
     def printingdate(self):
         print("next_turn_players_list", [i.__class__.__name__ for i in self.active_players_list])
         # 次のターン参加する人のリスト
-        print("betting_rate", self.money)  # レイズを繰り返した最終的にcallがそろった時の金額
+        print("betting_rate", self.__betting_cost)  # レイズを繰り返した最終的にcallがそろった時の金額
         print("personal_betting_money", self.bettingrate)
         # 降りた人も含めてこの時点でいくら賭けたかのリスト
         print()
@@ -216,7 +245,7 @@ class Dealer(object):
     def get_responses(self):  # playersから返事を次のターンに進められるまで聞き続ける
         if len(self.field) != 0:
             self.flag = 0
-            self.BB = (self.SB-1) % self.__num_players
+            self.__BB = (self.__SB-1) % self.__num_players
         self.flag_atfirst = 0
         while self.flag < self.__num_players and len(self.active_players_list) != 1:
             # while文でflagがプレイヤー数になるという次の工程に移行する条件を定義
@@ -565,5 +594,10 @@ class Dealer(object):
         return self.__DB
 
     @property
-    def current_rate(self):
-        return self.money
+    def betting_cost(self):
+        return self.__betting_cost
+
+    # obsolete #
+    @property
+    def money(self):
+        return self.__betting_cost
